@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stopwatch Web Application</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+            flex-direction: column;
+        }
+
+        .container {
+            background-color: #1e293b;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            border: 2px solid #334155;
+            background-image: linear-gradient(145deg, #1e293b, #152030);
+        }
+
+        h1, h2 {
+            color: #f8fafc;
+        }
+
+        .time-display {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 3rem;
+            font-weight: 700;
+            color: #67e8f9;
+            margin-bottom: 2rem;
+        }
+
+        .milliseconds {
+            font-size: 1.8rem;
+            color: #22d3ee;
+        }
+
+        .buttons-container button {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transform: translateY(0);
+        }
+
+        .buttons-container button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Start/Pause button colors */
+        .start-btn { background-color: #10b981; }
+        .start-btn:hover { background-color: #059669; }
+        .pause-btn { background-color: #ef4444; }
+        .pause-btn:hover { background-color: #dc2626; }
+        .lap-btn { background-color: #3b82f6; }
+        .lap-btn:hover { background-color: #2563eb; }
+        .reset-btn { background-color: #6b7280; }
+        .reset-btn:hover { background-color: #4b5563; }
+        .disabled-btn {
+            background-color: #334155 !important;
+            color: #94a3b8 !important;
+            cursor: not-allowed;
+        }
+        .disabled-btn:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Custom scrollbar for lap list */
+        .lap-list-container {
+            max-height: 250px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #4b5563 #2c3e50;
+        }
+        .lap-list-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .lap-list-container::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 10px;
+        }
+        .lap-list-container::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 10px;
+        }
+        .lap-list-item {
+            background-color: #2c3e50;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .lap-list-item:hover {
+            background-color: #334155;
+        }
+    </style>
+</head>
+<body>
+    <div class="container rounded-2xl p-8">
+        <h1 class="text-3xl font-bold mb-4">Stopwatch</h1>
+        <div class="time-display my-8">
+            <span id="hours">00</span>:<span id="minutes">00</span>:<span id="seconds">00</span>.<span id="milliseconds" class="milliseconds">00</span>
+        </div>
+        
+        <div class="buttons-container flex justify-center space-x-4 mb-8">
+            <button id="start-pause-btn" class="start-btn text-white font-semibold py-3 px-6 rounded-full">
+                Start
+            </button>
+            <button id="lap-btn" class="lap-btn text-white font-semibold py-3 px-6 rounded-full disabled-btn" disabled>
+                Lap
+            </button>
+            <button id="reset-btn" class="reset-btn text-white font-semibold py-3 px-6 rounded-full disabled-btn" disabled>
+                Reset
+            </button>
+        </div>
+
+        <div id="lap-list-container" class="lap-list-container text-left mt-4">
+            <h2 class="text-xl font-semibold mb-2 text-slate-300">Lap Times</h2>
+            <ul id="laps-list" class="space-y-2">
+                </ul>
+        </div>
+    </div>
+
+    <script>
+        const timeDisplay = document.querySelector('.time-display');
+        const startPauseBtn = document.getElementById('start-pause-btn');
+        const lapBtn = document.getElementById('lap-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const lapsList = document.getElementById('laps-list');
+
+        let isRunning = false;
+        let startTime = 0;
+        let elapsedTime = 0;
+        let lapCounter = 1;
+        let timerInterval;
+
+        function formatTime(ms) {
+            const date = new Date(ms);
+            const hours = String(date.getUTCHours()).padStart(2, '0');
+            const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+            const milliseconds = String(date.getUTCMilliseconds()).padStart(3, '0').slice(0, 2);
+            return { hours, minutes, seconds, milliseconds };
+        }
+
+        function updateDisplay() {
+            const { hours, minutes, seconds, milliseconds } = formatTime(elapsedTime);
+            document.getElementById('hours').textContent = hours;
+            document.getElementById('minutes').textContent = minutes;
+            document.getElementById('seconds').textContent = seconds;
+            document.getElementById('milliseconds').textContent = milliseconds;
+        }
+
+        function startPause() {
+            if (isRunning) {
+                // Pause the timer
+                clearInterval(timerInterval);
+                startPauseBtn.textContent = 'Start';
+                startPauseBtn.classList.remove('pause-btn');
+                startPauseBtn.classList.add('start-btn');
+                lapBtn.disabled = true;
+                lapBtn.classList.add('disabled-btn');
+                isRunning = false;
+            } else {
+                // Start the timer
+                startTime = Date.now() - elapsedTime;
+                timerInterval = setInterval(() => {
+                    elapsedTime = Date.now() - startTime;
+                    updateDisplay();
+                }, 10);
+                startPauseBtn.textContent = 'Pause';
+                startPauseBtn.classList.remove('start-btn');
+                startPauseBtn.classList.add('pause-btn');
+                lapBtn.disabled = false;
+                lapBtn.classList.remove('disabled-btn');
+                resetBtn.disabled = false;
+                resetBtn.classList.remove('disabled-btn');
+                isRunning = true;
+            }
+        }
+
+        function recordLap() {
+            const lapTime = formatTime(elapsedTime);
+            const lapItem = document.createElement('li');
+            lapItem.classList.add('py-2', 'px-4', 'lap-list-item', 'rounded-lg', 'flex', 'justify-between', 'items-center', 'text-slate-300', 'hover:bg-slate-700');
+            lapItem.innerHTML = `
+                <span class="font-semibold text-sky-400">Lap ${lapCounter}:</span>
+                <span class="font-mono">${lapTime.hours}:${lapTime.minutes}:${lapTime.seconds}.${lapTime.milliseconds}</span>
+            `;
+            lapsList.prepend(lapItem);
+            lapCounter++;
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            elapsedTime = 0;
+            lapCounter = 1;
+            updateDisplay();
+            startPauseBtn.textContent = 'Start';
+            startPauseBtn.classList.remove('pause-btn');
+            startPauseBtn.classList.add('start-btn');
+            lapBtn.disabled = true;
+            lapBtn.classList.add('disabled-btn');
+            resetBtn.disabled = true;
+            resetBtn.classList.add('disabled-btn');
+            lapsList.innerHTML = '';
+        }
+
+        startPauseBtn.addEventListener('click', startPause);
+        lapBtn.addEventListener('click', recordLap);
+        resetBtn.addEventListener('click', resetTimer);
+    </script>
+</body>
+</html>
